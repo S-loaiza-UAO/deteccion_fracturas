@@ -18,16 +18,29 @@ tf.compat.v1.experimental.output_all_intermediates(True)
 model_url = "https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing"
 
 # Ruta donde se guardará temporalmente el modelo descargado
-model_path = "C:/Users/san_l/Deteccion Fracturas UAO/deteccion_fracturas/deteccion_fracturas.h5"
+model_path = "modelos/deteccion_fracturas.h5"
 
-# Descargar el modelo si no existe
-if not os.path.exists(model_path):
-    with st.spinner('Descargando el modelo desde Google Drive...'):
+# Crear el directorio si no existe
+model_dir = os.path.dirname(model_path)
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+
+# Descargar el modelo desde Google Drive
+try:
+    if not os.path.exists(model_path):
+        st.write("Descargando el modelo...")
         gdown.download(model_url, model_path, quiet=False)
+    else:
+        st.write("Modelo ya descargado.")
+except Exception as e:
+    st.error(f"Error al descargar el modelo: {e}")
 
 # Cargar el modelo
-model = tf.keras.models.load_model(model_path)
-
+try:
+    model = tf.keras.models.load_model(model_path)
+    st.success("Modelo cargado exitosamente")
+except Exception as e:
+    st.error(f"Error al cargar el modelo: {e}")
 
 # Función para preprocesar la imagen
 def preprocess(array):
