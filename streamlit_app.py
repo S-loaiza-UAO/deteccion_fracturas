@@ -6,13 +6,28 @@ import cv2
 from PIL import Image
 import os
 from keras import backend as K
+import gdown
+import os
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.experimental.output_all_intermediates(True)
 
 # Cargar el modelo
-model_path = '/deteccion_fracturas.h5'
+
+# URL del modelo en Google Drive (debe ser un enlace público)
+model_url = "https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing"
+
+# Ruta donde se guardará temporalmente el modelo descargado
+model_path = "detector_fractura.h5"
+
+# Descargar el modelo si no existe
+if not os.path.exists(model_path):
+    with st.spinner('Descargando el modelo desde Google Drive...'):
+        gdown.download(model_url, model_path, quiet=False)
+
+# Cargar el modelo
 model = tf.keras.models.load_model(model_path)
+
 
 # Función para preprocesar la imagen
 def preprocess(array):
