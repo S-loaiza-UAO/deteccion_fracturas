@@ -27,7 +27,7 @@ def main():
         download_file_from_google_drive(model_url, model_path)
     
     # Verifica el tamaño del archivo descargado
-    expected_size = 112,4 * 1024 * 1024  # Tamaño esperado en bytes
+    expected_size = 112 * 1024 * 1024  # Tamaño esperado en bytes
     if os.path.getsize(model_path) < expected_size:
         print("El archivo descargado es demasiado pequeño, intentará descargarse nuevamente.")
         download_file_from_google_drive(model_url, model_path)
