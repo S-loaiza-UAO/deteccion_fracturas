@@ -11,7 +11,7 @@ tf.compat.v1.disable_eager_execution()
 tf.compat.v1.experimental.output_all_intermediates(True)
 
 # Cargar el modelo
-model_path = '/Users/san_l/Deteccion-Neumonia-UAO/Deteccion-Neumonia/conv_MLP_84.h5'
+model_path = 'deteccion_fracturas.h5'
 model = tf.keras.models.load_model(model_path)
 
 # Función para preprocesar la imagen
