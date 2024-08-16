@@ -18,7 +18,7 @@ tf.compat.v1.experimental.output_all_intermediates(True)
 model_url = "https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing"
 
 # Ruta donde se guardará temporalmente el modelo descargado
-model_path = "detector_fractura.h5"
+model_path = "modelo/detector_fractura.h5"
 
 # Descargar el modelo si no existe
 if not os.path.exists(model_path):
