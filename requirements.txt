@@ -4,7 +4,7 @@ pillow==10.4.0
 tkcap==0.0.3
 pydicom==2.4.4
 img2pdf==0.5.1
-opencv-python-headless
+opencv-python-headless==4.10.0.84
 matplotlib==3.9.1
 pandas==2.2.2
 tensorflow==2.15.0
