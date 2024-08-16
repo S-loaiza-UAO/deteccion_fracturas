@@ -11,29 +11,55 @@ import os
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.experimental.output_all_intermediates(True)
+#----------
+def download_file_from_google_drive(url, output_path):
+    # Descargue el archivo desde Google Drive
+    gdown.download(url, output_path, quiet=False)
 
+def main():
+    # URL del archivo en Google Drive
+    model_url = 'https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing'
+    model_path = 'modelos/deteccion_fracturas.h5'
+    
+    # Verifica si el archivo ya existe
+    if not os.path.exists(model_path):
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        download_file_from_google_drive(model_url, model_path)
+    
+    # Verifica el tamaño del archivo descargado
+    expected_size = 112,4 * 1024 * 1024  # Tamaño esperado en bytes
+    if os.path.getsize(model_path) < expected_size:
+        print("El archivo descargado es demasiado pequeño, intentará descargarse nuevamente.")
+        download_file_from_google_drive(model_url, model_path)
+    else:
+        print("El archivo descargado tiene el tamaño correcto.")
+
+if __name__ == "__main__":
+    main()
+
+#----------
 # Cargar el modelo
 
 # URL del modelo en Google Drive (debe ser un enlace público)
-model_url = "https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing"
+#model_url = "https://drive.google.com/file/d/1OhT1o23Ql_jvWnHONR1EMqGF_Fc2J0qA/view?usp=sharing"
 
 # Ruta donde se guardará temporalmente el modelo descargado
-model_path = "modelos/deteccion_fracturas.h5"
+#model_path = "modelos/deteccion_fracturas.h5"
 
 # Crear el directorio si no existe
-model_dir = os.path.dirname(model_path)
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
+#model_dir = os.path.dirname(model_path)
+#if not os.path.exists(model_dir):
+#    os.makedirs(model_dir)
 
 # Descargar el modelo desde Google Drive
-try:
-    if not os.path.exists(model_path):
-        st.write("Descargando el modelo...")
-        gdown.download(model_url, model_path, quiet=False)
-    else:
-        st.write("Modelo ya descargado.")
-except Exception as e:
-    st.error(f"Error al descargar el modelo: {e}")
+#try:
+#    if not os.path.exists(model_path):
+#        st.write("Descargando el modelo...")
+#        gdown.download(model_url, model_path, quiet=False)
+#    else:
+#        st.write("Modelo ya descargado.")
+#except Exception as e:
+#    st.error(f"Error al descargar el modelo: {e}")
 
 # Cargar el modelo
 try:
