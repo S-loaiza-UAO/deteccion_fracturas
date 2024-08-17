@@ -10,4 +10,4 @@ pandas==2.2.2
 tensorflow==2.15.0
 python-xlib==0.33
 gdown==5.2.0
-fpdf
+fpdf==1.7.2
