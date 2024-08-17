@@ -134,12 +134,16 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf.cell(200, 10, txt="Imagen Original", ln=False, align="C")
     pdf.cell(200, 10, txt="Heatmap de Grad-CAM", ln=False, align="C")
 
-    # Guardar el PDF en un archivo temporal
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
-        pdf_path = temp_file.name
-        pdf.output(pdf_path)
+    # Definir ruta de almacenamiento
+    save_directory = "reportes_pdf"  # Directorio para guardar los PDFs
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
 
-    return pdf_path
+    # Guardar el PDF con el ID del paciente como nombre
+    pdf_filename = f"{save_directory}/reporte_{patient_id}.pdf"
+    pdf.output(pdf_filename)
+
+    return pdf_filename
 
 # Interfaz en Streamlit
 def main():
@@ -151,29 +155,54 @@ def main():
     # Cargar imagen
     uploaded_file = st.file_uploader("Cargar imagen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
 
+    # Verificar si ya se ha cargado una imagen previamente y limpiar si es necesario
+    if 'image_array' not in st.session_state:
+        st.session_state.image_array = None
+        st.session_state.label = None
+        st.session_state.proba = None
+        st.session_state.heatmap = None
+
     if uploaded_file is not None:
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
         if file_extension == ".dcm":
-            image_array = read_dicom_file(uploaded_file)
+            st.session_state.image_array = read_dicom_file(uploaded_file)
         else:
-            image_array = read_image_file(uploaded_file)
+            st.session_state.image_array = read_image_file(uploaded_file)
         
         # Mostrar imagen original
-        st.image(image_array, caption="Imagen Radiográfica", use_column_width=True)
-        
+        st.image(st.session_state.image_array, caption="Imagen Radiográfica", use_column_width=True)
+
         if st.button("Predecir"):
-            label, proba, heatmap = predict(image_array)
+            st.session_state.label, st.session_state.proba, st.session_state.heatmap = predict(st.session_state.image_array)
             
             # Mostrar resultados
-            st.write(f"Resultado: {label}")
-            st.write(f"Probabilidad: {proba:.2f}%")
+            st.write(f"Resultado: {st.session_state.label}")
+            st.write(f"Probabilidad: {st.session_state.proba:.2f}%")
             
             # Mostrar heatmap
-            st.image(heatmap, caption="Imagen con Heatmap", use_column_width=True)
-            
+            st.image(st.session_state.heatmap, caption="Imagen con Heatmap", use_column_width=True)
+
+            # Botón para descargar el reporte en PDF
+            if st.button("Generar Reporte PDF"):
+                pdf_path = generate_pdf(patient_id, st.session_state.label, st.session_state.proba, st.session_state.image_array, st.session_state.heatmap)
+                with open(pdf_path, "rb") as file:
+                    st.download_button(
+                        label="Descargar Reporte en PDF",
+                        data=file,
+                        file_name=f"reporte_{patient_id}.pdf",
+                        mime="application/pdf"
+                    )
+
         # Botón para eliminar la información cargada
         if st.button("Eliminar Información"):
+            st.session_state.image_array = None
+            st.session_state.label = None
+            st.session_state.proba = None
+            st.session_state.heatmap = None
             st.experimental_rerun()  # Recarga la aplicación para limpiar los datos
-            
+
+    else:
+        st.write("Por favor, cargue una imagen para realizar el diagnóstico.")
+
 if __name__ == "__main__":
     main()
