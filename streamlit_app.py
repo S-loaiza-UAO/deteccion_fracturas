@@ -6,8 +6,6 @@ import cv2
 from PIL import Image
 import os
 from keras import backend as K
-import gdown
-import os
 from fpdf import FPDF
 import tempfile
 
@@ -94,12 +92,6 @@ def read_image_file(path):
     img_array = np.array(img)
     return img_array
 
-# Función para leer archivos JPG o PNG
-#def read_image_file(path):
-#    img = cv2.imread(path)
-#    img_array = np.asarray(img)
-#    return img_array
-
 # Función para generar el reporte en PDF
 def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf = FPDF()
@@ -147,10 +139,10 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
 
 # Interfaz en Streamlit
 def main():
-    st.title("Software diagnóstico médico con IA")
+    st.title("🚀🩺Herramienta de apoyo para dianóstico rápido de lesiones oseas🦴🧠")
 
     # Entrada para la identificación del paciente
-    patient_id = st.text_input("Cédula Paciente:")
+    patient_id = st.text_input("Ingrese el ID del paciente:")
 
     # Cargar imagen
     uploaded_file = st.file_uploader("Cargar imagen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
@@ -170,9 +162,9 @@ def main():
             st.session_state.image_array = read_image_file(uploaded_file)
         
         # Mostrar imagen original
-        st.image(st.session_state.image_array, caption="Imagen Radiográfica", use_column_width=True)
+        st.image(st.session_state.image_array, caption="Imagen Radiográfica cargada", use_column_width=True)
 
-        if st.button("Predecir"):
+        if st.button("Predecir..."):
             st.session_state.label, st.session_state.proba, st.session_state.heatmap = predict(st.session_state.image_array)
             
             # Mostrar resultados
@@ -180,10 +172,10 @@ def main():
             st.write(f"Probabilidad: {st.session_state.proba:.2f}%")
             
             # Mostrar heatmap
-            st.image(st.session_state.heatmap, caption="Imagen con Heatmap", use_column_width=True)
+            st.image(st.session_state.heatmap, caption="Imagen Radiográficas con zonas afectadas", use_column_width=True)
 
             # Botón para descargar el reporte en PDF
-            if st.button("Generar Reporte PDF"):
+            if st.button("Generar Reporte PDF..."):
                 pdf_path = generate_pdf(patient_id, st.session_state.label, st.session_state.proba, st.session_state.image_array, st.session_state.heatmap)
                 with open(pdf_path, "rb") as file:
                     st.download_button(
