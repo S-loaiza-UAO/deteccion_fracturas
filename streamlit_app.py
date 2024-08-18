@@ -8,6 +8,7 @@ import os
 from keras import backend as K
 from fpdf import FPDF
 import tempfile
+from io import BytesIO
 
 tf.compat.v1.disable_eager_execution()
 tf.compat.v1.experimental.output_all_intermediates(True)
@@ -92,7 +93,7 @@ def read_image_file(path):
     img_array = np.array(img)
     return img_array
 
-# Función para generar el reporte en PDF
+#Funcion para generar reporte PDF
 def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf = FPDF()
     pdf.add_page()
@@ -109,37 +110,44 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf.cell(200, 10, txt=f"Probabilidad: {proba:.2f}%", ln=True)
 
     pdf.ln(10)
-    # Guardar imágenes en archivos temporales
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
-        original_image_path = temp_file.name
-        Image.fromarray(original_image).save(original_image_path)
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
-        heatmap_image_path = temp_file.name
-        Image.fromarray(heatmap_image).save(heatmap_image_path)
+    # Convertir imágenes a PIL para agregar al PDF
+    original_image_pil = Image.fromarray(original_image)
+    heatmap_image_pil = Image.fromarray(heatmap_image)
 
-    # Agregar las imágenes al PDF
-    pdf.image(original_image_path, x=10, y=80, w=90)
-    pdf.image(heatmap_image_path, x=110, y=80, w=90)
+    # Guardar las imágenes en memoria usando BytesIO
+    original_image_buffer = BytesIO()
+    heatmap_image_buffer = BytesIO()
+
+    original_image_pil.save(original_image_buffer, format="PNG")
+    heatmap_image_pil.save(heatmap_image_buffer, format="PNG")
+
+    # Agregar las imágenes desde memoria
+    pdf.image(original_image_buffer, x=10, y=80, w=90)
+    pdf.image(heatmap_image_buffer, x=110, y=80, w=90)
 
     pdf.ln(85)
     pdf.cell(200, 10, txt="Imagen Original", ln=False, align="C")
     pdf.cell(200, 10, txt="Heatmap de Grad-CAM", ln=False, align="C")
 
-    # Definir ruta de almacenamiento
-    save_directory = "reportes_pdf"  # Directorio para guardar los PDFs
-    if not os.path.exists(save_directory):
-        os.makedirs(save_directory)
-
-    # Guardar el PDF con el ID del paciente como nombre
-    pdf_filename = f"{save_directory}/reporte_{patient_id}.pdf"
-    pdf.output(pdf_filename)
-
-    return pdf_filename
+    # Guardar el PDF en memoria y devolverlo
+    pdf_buffer = BytesIO()
+    pdf.output(pdf_buffer, 'F').encode('latin1')
+    
+    # Regresar los bytes del PDF para descargar
+    pdf_buffer.seek(0)
+    return pdf_buffer
 
 # Interfaz en Streamlit
 def main():
-    st.title("🚀🩺Herramienta de apoyo para dianóstico rápido de lesiones oseas🦴🧠")
+    # Inicializar el estado de la sesión
+    if 'image_array' not in st.session_state:
+        st.session_state.image_array = None
+        st.session_state.label = None
+        st.session_state.proba = None
+        st.session_state.heatmap = None
+    
+    st.title("🚀🩺Herramienta para dianóstico rápido de lesiones oseas🦴🧠")
 
     # Entrada para la identificación del paciente
     patient_id = st.text_input("Ingrese el ID del paciente:")
@@ -174,24 +182,26 @@ def main():
             # Mostrar heatmap
             st.image(st.session_state.heatmap, caption="Imagen Radiográficas con zonas afectadas", use_column_width=True)
 
-            # Botón para descargar el reporte en PDF
             if st.button("Generar Reporte PDF..."):
-                pdf_path = generate_pdf(patient_id, st.session_state.label, st.session_state.proba, st.session_state.image_array, st.session_state.heatmap)
-                with open(pdf_path, "rb") as file:
+                # Asegúrate de que la imagen y la predicción existen antes de generar el PDF
+                if st.session_state.image_array is not None and st.session_state.label is not None:
+                    pdf_buffer = generate_pdf(
+                        patient_id,
+                        st.session_state.label,
+                        st.session_state.proba,
+                        st.session_state.image_array,
+                        st.session_state.heatmap
+                        )
+                    
+                    # Botón de descarga
                     st.download_button(
                         label="Descargar Reporte en PDF",
-                        data=file,
+                        data=pdf_buffer,
                         file_name=f"reporte_{patient_id}.pdf",
                         mime="application/pdf"
-                    )
-
-        # Botón para eliminar la información cargada
-        if st.button("Eliminar Información"):
-            st.session_state.image_array = None
-            st.session_state.label = None
-            st.session_state.proba = None
-            st.session_state.heatmap = None
-            st.experimental_rerun()  # Recarga la aplicación para limpiar los datos
+                        )
+                else:
+                    st.error("No se ha realizado ninguna predicción. Cargue una imagen y realice la predicción primero.")
 
     else:
         st.write("Por favor, cargue una imagen para realizar el diagnóstico.")
