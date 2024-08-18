@@ -93,7 +93,7 @@ def read_image_file(path):
     img_array = np.array(img)
     return img_array
 
-#Funcion para generar reporte PDF
+# Función para generar reporte PDF
 def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf = FPDF()
     pdf.add_page()
@@ -115,27 +115,45 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     original_image_pil = Image.fromarray(original_image)
     heatmap_image_pil = Image.fromarray(heatmap_image)
 
-    # Guardar las imágenes en memoria usando BytesIO
+    # Guardar imágenes en buffers de memoria
     original_image_buffer = BytesIO()
     heatmap_image_buffer = BytesIO()
 
     original_image_pil.save(original_image_buffer, format="PNG")
     heatmap_image_pil.save(heatmap_image_buffer, format="PNG")
 
-    # Agregar las imágenes desde memoria
-    pdf.image(original_image_buffer, x=10, y=80, w=90)
-    pdf.image(heatmap_image_buffer, x=110, y=80, w=90)
+    # Volver a la posición inicial del buffer
+    original_image_buffer.seek(0)
+    heatmap_image_buffer.seek(0)
+
+    # Convertir los buffers de imágenes a archivos temporales
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as original_temp_file:
+        original_temp_file.write(original_image_buffer.getvalue())
+        original_temp_file_path = original_temp_file.name
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as heatmap_temp_file:
+        heatmap_temp_file.write(heatmap_image_buffer.getvalue())
+        heatmap_temp_file_path = heatmap_temp_file.name
+
+    # Agregar las imágenes desde archivos temporales
+    pdf.image(original_temp_file_path, x=10, y=80, w=90)
+    pdf.image(heatmap_temp_file_path, x=110, y=80, w=90)
 
     pdf.ln(85)
     pdf.cell(200, 10, txt="Imagen Original", ln=False, align="C")
     pdf.cell(200, 10, txt="Heatmap de Grad-CAM", ln=False, align="C")
 
-    # Guardar el PDF en memoria y devolverlo
+    # Guardar el PDF en un buffer de memoria y devolverlo
     pdf_buffer = BytesIO()
-    pdf.output(pdf_buffer, 'F').encode('latin1')
+    pdf.output(pdf_buffer)
     
     # Regresar los bytes del PDF para descargar
     pdf_buffer.seek(0)
+    
+    # Eliminar archivos temporales
+    os.remove(original_temp_file_path)
+    os.remove(heatmap_temp_file_path)
+    
     return pdf_buffer
 
 # Interfaz en Streamlit
@@ -146,21 +164,15 @@ def main():
         st.session_state.label = None
         st.session_state.proba = None
         st.session_state.heatmap = None
+        st.session_state.pdf_buffer = None  # Estado para el PDF generado
     
-    st.title("🚀🩺Herramienta para dianóstico rápido de lesiones oseas🦴🧠")
+    st.title("🚀🩺Herramienta para diagnóstico rápido de lesiones óseas🦴🧠")
 
     # Entrada para la identificación del paciente
     patient_id = st.text_input("Ingrese el ID del paciente:")
 
     # Cargar imagen
-    uploaded_file = st.file_uploader("Cargar imagen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
-
-    # Verificar si ya se ha cargado una imagen previamente y limpiar si es necesario
-    if 'image_array' not in st.session_state:
-        st.session_state.image_array = None
-        st.session_state.label = None
-        st.session_state.proba = None
-        st.session_state.heatmap = None
+    uploaded_file = st.file_uploader("📁 Cargar imagen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
@@ -170,9 +182,9 @@ def main():
             st.session_state.image_array = read_image_file(uploaded_file)
         
         # Mostrar imagen original
-        st.image(st.session_state.image_array, caption="Imagen Radiográfica cargada", use_column_width=True)
+        st.image(st.session_state.image_array, caption="🖼 Imagen Radiográfica cargada", use_column_width=True)
 
-        if st.button("Predecir..."):
+        if st.button("🤖 Predecir"):
             st.session_state.label, st.session_state.proba, st.session_state.heatmap = predict(st.session_state.image_array)
             
             # Mostrar resultados
@@ -180,31 +192,30 @@ def main():
             st.write(f"Probabilidad: {st.session_state.proba:.2f}%")
             
             # Mostrar heatmap
-            st.image(st.session_state.heatmap, caption="Imagen Radiográficas con zonas afectadas", use_column_width=True)
+            st.image(st.session_state.heatmap, caption="🔥 Imagen Radiográfica con zonas afectadas", use_column_width=True)
 
-            if st.button("Generar Reporte PDF..."):
-                # Asegúrate de que la imagen y la predicción existen antes de generar el PDF
-                if st.session_state.image_array is not None and st.session_state.label is not None:
-                    pdf_buffer = generate_pdf(
-                        patient_id,
-                        st.session_state.label,
-                        st.session_state.proba,
-                        st.session_state.image_array,
-                        st.session_state.heatmap
-                        )
-                    
-                    # Botón de descarga
-                    st.download_button(
-                        label="Descargar Reporte en PDF",
-                        data=pdf_buffer,
-                        file_name=f"reporte_{patient_id}.pdf",
-                        mime="application/pdf"
-                        )
-                else:
-                    st.error("No se ha realizado ninguna predicción. Cargue una imagen y realice la predicción primero.")
+            # Generar el PDF solo si se ha realizado una predicción
+            if st.session_state.label is not None:
+                st.session_state.pdf_buffer = generate_pdf(
+                    patient_id,
+                    st.session_state.label,
+                    st.session_state.proba,
+                    st.session_state.image_array,
+                    st.session_state.heatmap
+                )
+        
+    # Botón de descarga del PDF (fuera del flujo de predicción)
+    if st.session_state.pdf_buffer is not None:
+        st.download_button(
+            label="📄 Descargar Reporte en PDF",
+            data=st.session_state.pdf_buffer,
+            file_name=f"reporte_{patient_id}.pdf",
+            mime="application/pdf"
+        )
 
-    else:
-        st.write("Por favor, cargue una imagen para realizar el diagnóstico.")
+    # Botón para reiniciar la aplicación
+    if st.button("🔄 Reiniciar Aplicación"):
+        st.session_state.clear()
 
 if __name__ == "__main__":
     main()
