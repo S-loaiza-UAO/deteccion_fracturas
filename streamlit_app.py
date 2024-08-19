@@ -14,7 +14,7 @@ tf.compat.v1.disable_eager_execution()
 tf.compat.v1.experimental.output_all_intermediates(True)
 
 # Ruta del modelo
-model_path = "deteccion_fracturas.h5"
+model_path = "clasificador_fractura.h5"
 
 # Cargar el modelo
 try:
@@ -25,55 +25,70 @@ except Exception as e:
 
 # Función para preprocesar la imagen
 def preprocess(array):
-    array = cv2.resize(array, (512, 512))
-    array = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(4, 4))
-    array = clahe.apply(array)
-    array = array / 255
-    array = np.expand_dims(array, axis=-1)
-    array = np.expand_dims(array, axis=0)
+    array = cv2.resize(array, (128, 128))  # Redimensionar a (128, 128)
+    array = cv2.cvtColor(array, cv2.COLOR_BGR2RGB)  # Asegurar que sea RGB
+    array = array / 255.0  # Normalizar los valores de píxel entre 0 y 1
+    array = np.expand_dims(array, axis=0)  # Añadir dimensión de lote (batch)
     return array
 
-# Función Grad-CAM
 def grad_cam(array):
     img = preprocess(array)
     preds = model.predict(img)
     argmax = np.argmax(preds[0])
     output = model.output[:, argmax]
-    last_conv_layer = model.get_layer("conv10_thisone")
+
+    last_conv_layer = model.get_layer("conv2d_2")
     grads = K.gradients(output, last_conv_layer.output)[0]
     pooled_grads = K.mean(grads, axis=(0, 1, 2))
     iterate = K.function([model.input], [pooled_grads, last_conv_layer.output[0]])
     pooled_grads_value, conv_layer_output_value = iterate(img)
-    for filters in range(64):
+
+    for filters in range(conv_layer_output_value.shape[-1]):
         conv_layer_output_value[:, :, filters] *= pooled_grads_value[filters]
     
     heatmap = np.mean(conv_layer_output_value, axis=-1)
     heatmap = np.maximum(heatmap, 0)
     heatmap /= np.max(heatmap)
-    heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[2]))
+    
+    # Redimensionar heatmap a las dimensiones de la imagen original
+    heatmap = cv2.resize(heatmap, (array.shape[1], array.shape[0]))
     heatmap = np.uint8(255 * heatmap)
     heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-    img2 = cv2.resize(array, (512, 512))
-    hif = 0.8
-    transparency = heatmap * hif
-    transparency = transparency.astype(np.uint8)
-    superimposed_img = cv2.add(transparency, img2)
-    return superimposed_img[:, :, ::-1]
+    
+    if len(array.shape) == 2 or array.shape[2] == 1:
+        img2 = cv2.cvtColor(array, cv2.COLOR_GRAY2RGB)
+    else:
+        img2 = array
 
-# Función de predicción
+    img2 = cv2.resize(img2, (heatmap.shape[1], heatmap.shape[0]))   
+    hif = 0.4 
+    transparency = cv2.addWeighted(img2, 1 - hif, heatmap, hif, 0)
+    
+    return transparency[:, :, ::-1]
+
+# Función de predicción actualizada con los nuevos labels
 def predict(array):
     batch_array_img = preprocess(array)
     prediction = np.argmax(model.predict(batch_array_img))
     proba = np.max(model.predict(batch_array_img)) * 100
-    label = ""
-    if prediction == 0:
-        label = "bacteriana"
-    elif prediction == 1:
-        label = "normal"
-    elif prediction == 2:
-        label = "viral"
+    
+    # Diccionario con los labels
+    labels = {
+        0: 'Codo',
+        1: 'Dedo',
+        2: 'Antebrazo',
+        3: 'Mano',
+        4: 'Húmero',
+        5: 'Hombro',
+        6: 'Muñeca'
+    }
+
+    # Obtener el label basado en la predicción
+    label = labels.get(prediction, "Desconocido")
+
+    # Generar el heatmap
     heatmap = grad_cam(array)
+
     return (label, proba, heatmap)
 
 # Función para leer archivos DICOM
@@ -99,15 +114,15 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
     pdf.add_page()
 
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(200, 10, txt="Reporte Diagnóstico Médico", ln=True, align="C")
+    pdf.cell(200, 10, txt="Reporte diagnóstico de lesiones óseas", ln=True, align="C")
 
     pdf.ln(10)
     pdf.set_font("Arial", size=12)
-    pdf.cell(200, 10, txt=f"Cédula del Paciente: {patient_id}", ln=True)
+    pdf.cell(200, 10, txt=f"ID del paciente: {patient_id}", ln=True)
 
     pdf.ln(10)
-    pdf.cell(200, 10, txt=f"Resultado de la Predicción: {label}", ln=True)
-    pdf.cell(200, 10, txt=f"Probabilidad: {proba:.2f}%", ln=True)
+    pdf.cell(200, 10, txt=f"Zona afectada: {label}", ln=True)
+    pdf.cell(200, 10, txt=f"Probabilidad de lesión crítica: {proba:.2f}%", ln=True)
 
     pdf.ln(10)
 
@@ -141,12 +156,12 @@ def generate_pdf(patient_id, label, proba, original_image, heatmap_image):
 
     pdf.ln(85)
     pdf.cell(200, 10, txt="Imagen Original", ln=False, align="C")
-    pdf.cell(200, 10, txt="Heatmap de Grad-CAM", ln=False, align="C")
+    pdf.cell(200, 10, txt="Heatmap de Imagen", ln=False, align="C")
 
     # Guardar el PDF en un buffer de memoria y devolverlo
     pdf_buffer = BytesIO()
-    pdf.output(pdf_buffer)
-    
+    pdf_buffer.write(pdf.output(dest='S').encode("latin1"))
+
     # Regresar los bytes del PDF para descargar
     pdf_buffer.seek(0)
     
@@ -169,10 +184,11 @@ def main():
     st.title("🚀🩺Herramienta para diagnóstico rápido de lesiones óseas🦴🧠")
 
     # Entrada para la identificación del paciente
-    patient_id = st.text_input("Ingrese el ID del paciente:")
 
-    # Cargar imagen
-    uploaded_file = st.file_uploader("📁 Cargar imagen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
+    patient_id = st.text_input("ID del paciente:")
+
+    # Cargar array
+    uploaded_file = st.file_uploader("📁 Cargar Imágen (DICOM, JPG, PNG)", type=["dcm", "jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
         file_extension = os.path.splitext(uploaded_file.name)[1].lower()
@@ -181,18 +197,18 @@ def main():
         else:
             st.session_state.image_array = read_image_file(uploaded_file)
         
-        # Mostrar imagen original
-        st.image(st.session_state.image_array, caption="🖼 Imagen Radiográfica cargada", use_column_width=True)
+        # Mostrar array original
+        st.image(st.session_state.image_array, caption="🖼 Imágen Radiográfica cargada", use_column_width=True)
 
         if st.button("🤖 Predecir"):
             st.session_state.label, st.session_state.proba, st.session_state.heatmap = predict(st.session_state.image_array)
             
             # Mostrar resultados
-            st.write(f"Resultado: {st.session_state.label}")
-            st.write(f"Probabilidad: {st.session_state.proba:.2f}%")
+            st.write(f"Zona afectada: {st.session_state.label}")
+            st.write(f"Probabilidad de lesion crítica: {st.session_state.proba:.2f}%")
             
             # Mostrar heatmap
-            st.image(st.session_state.heatmap, caption="🔥 Imagen Radiográfica con zonas afectadas", use_column_width=True)
+            st.image(st.session_state.heatmap, caption="🔥 Imágen Radiográfica con zonas afectadas", use_column_width=True)
 
             # Generar el PDF solo si se ha realizado una predicción
             if st.session_state.label is not None:
@@ -209,13 +225,13 @@ def main():
         st.download_button(
             label="📄 Descargar Reporte en PDF",
             data=st.session_state.pdf_buffer,
-            file_name=f"reporte_{patient_id}.pdf",
+            file_name=f"Diagnóstico{patient_id}.pdf",
             mime="application/pdf"
         )
 
     # Botón para reiniciar la aplicación
     if st.button("🔄 Reiniciar Aplicación"):
-        st.session_state.clear()
+        st.rerun()
 
 if __name__ == "__main__":
     main()

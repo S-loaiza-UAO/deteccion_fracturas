@@ -2,10 +2,15 @@
 ### Por: Santiago García Solarte & Santiago Loaiza Cardona
 ### Entrega proyecto final: Desarrollo de proyectos de inteligencia artificial.
 
-Deep Learning aplicado en el procesamiento de imágenes radiográficas de extremidades en formato DICOM, utilizando el dataset MURA (Musculoskeletal Radiographs) (consultalo [AQUI](https://stanfordmlgroup.github.io/competitions/mura/)) de Stanford, con el fin de clasificarlas en las siguientes categorías:
+Deep Learning aplicado en el procesamiento de imágenes radiográficas de extremidades, utilizando el dataset MURA (Musculoskeletal Radiographs) de Stanford (consultalo [AQUI](https://stanfordmlgroup.github.io/competitions/mura/)), con el fin de clasificarlas con una probabilidad de lesion critica en las siguientes categorias:
 
-- Fractura
-- Sin Fractura
+- Codo
+- Dedo
+- Antebrazo
+- Mano
+- Humero
+- Hombro
+- Muñeca
 
 Adicional se realiza la aplicación de una técnica de explicación llamada Grad-CAM para resaltar con un mapa de calor las regiones relevantes de la imagen de entrada.
 
@@ -14,85 +19,81 @@ Adicional se realiza la aplicación de una técnica de explicación llamada Grad
 ## Uso de la herramienta:
 Realiza los siguientes pasos para empezar a utilizarla:
 
-#### Metodo #1: Anaconda Prompt
-
-Requerimientos necesarios para el funcionamiento:
-
-- Instale Anaconda para Windows [AQUI](https://docs.anaconda.com/anaconda/install/windows/) y siga las siguientes instrucciones:
-  
-- Abra Anaconda Prompt y ejecute los siguientes comandos:
-
-      conda create -n tf tensorflow
-
-      conda activate tf
-
-      cd -Direccion de ubicacion del proyecto en su local-
-
-      pip install -r requirements.txt
-
-      python detector_neumonia.py
-
-#### Metodo #2: Visual Studio Code
+#### Metodo #1: Visual Studio Code
 
 Requerimientos necesarios para el funcionamiento:
 
 - Instale Visual Studio Code para windows [AQUI](https://code.visualstudio.com/download) 
   
-- Abra VScode e instale pack de python para gestionar los entornos
+- Abra un entorno de ejecucion de "powershell"
 
-- Cree un entorno con extension .conda
+- Ejecute los siguientes comandos:
 
-- Abra el terminal recien creado y ejecute los siguientes comandos:
+      git clone https://github.com/santenana/Proyecto_final
 
-      conda create -n tf tensorflow
-
-      conda activate tf
-
-      cd -Direccion de ubicacion del proyecto en su local-
+      cd Proyecto_final
 
       pip install -r requirements.txt
 
-      python detector_neumonia.py
+    Verificar que las dependencias requeridas se hayan instalado con exito.
+
+## Pruebas en contenedor Docker
+
+Para ejecutar la herramienta de diagnostico, ejecute los siguientes comandos:
+
+        cd Proyecto_final
+
+        docker build -t streamlit-app .
+
+Iniciará el proceso de crear la imagen con la información requerida. Finalizado el proceso de creacion ejecuta:
+
+    docker run -p 8501:8501 streamlit-app     # "streamlit-app" sera el nombre de la imagen creada.
+
+Ahora abre el navegador web de tu preferencia e ingresa la siguiente URL:
+
+        http://localhost:8501/
+
+En este punto se estará ejecutando el aplicativo de diagnostivo medico para lesiones osea. A continuacion veras el funcionamiento de la interfaz gráfica, la cual es muy intuitiva.
 
 #### Uso de la Interfaz Gráfica:
 
 - Ingrese el documento que identifica al paciente en la caja de texto.
-- Presione el botón 'Cargar Imagen', seleccione la imagen desde el explorador de archivos de su computador.
-- En el siguiente link podra descargar y realizar pruebas con algunas [IMAGENES](https://drive.google.com/drive/folders/1WOuL0wdVC6aojy8IfssHcqZ4Up14dy0g?usp=drive_link)
-- Presione el botón 'Predecir' y espere los resultados.
-- Presione el botón 'Guardar' para almacenar la información del paciente en un archivo excel con extensión .csv
-- Presione el botón 'PDF' para generar un reporte en formato PDF con la información desplegada en la interfaz.
-- Presión el botón 'Borrar' si desea cargar una nueva imagen o borrar la informacion del paciente.
+- Presione el botón 'Cargar imagen', seleccione la imagen desde el explorador de archivos de su computador.
+- Desde el repositorio podra descargar imagenes de prueba.
+- Se mostrará la imagen que se ha seleccionado.
+- Presione el botón 'Descargar Reporte en PDF' y automaticamente se descargara un documento PDF con el diagnóstico del modelo.
+- Presión el botón 'Reiniciar Aplicación' para realizar un nuevo diagnóstico.
+
+Para ver el funcionamiento del aplicativo has clic [AQUI](Video_muestra/streamlit.mp4)
 
 ---
 
 ## Arquitectura de archivos propuesta.
-## detector_fractura.py
+## streamlit_app.py
 
-Contiene el diseño de la interfaz gráfica utilizando Tkinter. Los botones llaman métodos contenidos en otros scripts.
+Contiene el diseño de la interfaz gráfica utilizando Streamlit. Los botones llaman métodos contenidos dentro del script.
 
-## integrator.py
+## streamlit.py
 
-Es un módulo que integra los demás scripts y retorna solamente lo necesario para ser visualizado en la interfaz gráfica.
-Retorna la clase, la probabilidad y una imagen el mapa de calor generado por Grad-CAM.
+Es la interfaz que integra los demás scripts y retorna solamente lo necesario para ser visualizado en la interfaz gráfica.
+Retorna la clase, la probabilidad y una imagen el mapa de calor generado por Grad-CAM, ademas de ejecutar las funciones de fondo para generar el reporte PDF.
 
 ## read_img.py
 
-Script que lee la imagen en formato DICOM para visualizarla en la interfaz gráfica. Además, la convierte a arreglo para su preprocesamiento.
+Script que lee la imagen en formato DICOM, PNG, JPG o JPEG para visualizarla en la interfaz gráfica.
 
 ## preprocess_img.py
 
 Script que recibe el arreglo proveniento de read_img.py, realiza las siguientes modificaciones:
 
-- resize a 512x512
-- conversión a escala de grises
-- ecualización del histograma con CLAHE
+- resize a 1285x128
+- conversión de BGR a RGB para obtener los 3 canales de color.
 - normalización de la imagen entre 0 y 1
-- conversión del arreglo de imagen a formato de batch (tensor)
+- conversión del arreglo de imagen a formato de batch (tensor [1,128,128,3])
 
 ## load_model.py
 
-Script que lee el archivo binario del modelo de red neuronal convolucional previamente entrenado llamado 'conv_MLP_84.h5'.
+Código que lee el archivo binario del modelo de red neuronal convolucional previamente entrenado llamado 'clasificador_fractura.h5'.
 
 ## grad_cam.py
 
@@ -102,7 +103,25 @@ Script que recibe la imagen y la procesa, carga el modelo, obtiene la predicció
 
 ## Acerca del Modelo
 
-La red neuronal convolucional implementada (CNN) está basada en un enfoque adaptado del modelo utilizado para la detección de fracturas en el dataset MURA. La arquitectura del modelo incluye múltiples bloques convolucionales, seguidos de capas de max pooling y fully connected, con regularización mediante dropout.
+La red neuronal convolucional implementada (CNN) es la siguiente:
+
+        model = Sequential()
+
+        model.add(Conv2D(32,(3,3),1, activation="relu", input_shape=(128,128,3)))
+        model.add(MaxPooling2D())
+
+        model.add(Conv2D(64,(3,3),1,activation="relu"))
+        model.add(MaxPooling2D())
+
+        model.add(Conv2D(32,(3,3),1,activation="relu"))
+        model.add(MaxPooling2D())
+
+        model.add(Flatten())    
+        model.add(Dense(128, activation='relu'))
+        model.add(Dense(7,activation='softmax'))
+
+ La funcion grad_cam esta asociada a la capa "conv2d_2" ya que es la capa que mejor resultado se obtuvo. La arquitectura del modelo incluye múltiples bloques convolucionales, seguidos de capas de max pooling y dense con un entrenamiento de 20 ciclos.
+
 
 ## Acerca de Grad-CAM
 
@@ -114,33 +133,6 @@ Grad-CAM realiza el cálculo del gradiente de la salida correspondiente a la cla
 
 Para ejecutar las pruebas unitarias, asegúrate de tener las dependencias instaladas, ejecuta el siguiente comando:
 
-    pip install pytest
-
-    pytest
-
-
-## Pruebas contenedor Docker
-
-Para realizar las pruebas con Docker, asegúrate de tener el siguiente aplicativo instalado para Windows: descargar Xming [AQUI](https://sourceforge.net/projects/xming/)
-
-Esta aplicación se estará ejecutando en segundo plano (Verifiquelo desde su administrador de tareas).
-
-Ahora desde su terminal de preferencia ejecute los siguientes comandos:
-
-    git clone https://github.com/santenana/Proyecto_Fracturas
-
-    cd "ubicacion del repositorio clonado"
-
-    docker build -t deteccion-lesiones:latest .
-
-Iniciará el proceso de crear la imagen con la informacion requerida. Finalizado el proceso de creacion ejecuta:
-
-    docker run -it -e DISPLAY=host.docker.internal:0.0 deteccion-lesiones python3 detector_lesiones.py
-
-"deteccion-neumonia" seria el nombre de la imagen creada, en caso de que la imagen creada tenga otro nombre se debe modificar.
-"detector_neumonia.py" seria el nombre de la app de python, en caso de tenerla con un nombre diferente se debe modificar.
-
-En este punto se debe estar ejecutando la aplicación Xming con la interfas grafica de Tkinter y se podra hacer uso del modelo de diagnostico.
 
 ---
 
@@ -148,25 +140,3 @@ En este punto se debe estar ejecutando la aplicación Xming con la interfas graf
 Santiago García Solarte - https://github.com/santenana
 
 Santiago Loaiza Cardona- https://github.com/S-loaiza-UAO
-
-# 🎈 Blank app template
-
-A simple Streamlit app template for you to modify!
-
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
-
-### How to run it on your own machine
-
-1. Install the requirements
-
-   ```
-   $ pip install -r requirements.txt
-   ```
-
-2. Run the app
-
-   ```
-   $ streamlit run streamlit_app.py
-   ```
-
-http://localhost:8501/
